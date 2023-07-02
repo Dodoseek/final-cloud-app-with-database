@@ -175,3 +175,15 @@ input[type=text]:focus, input[type=password]:focus {
 .dropdown:hover .dropdown-content {display: block;}
 
 .dropdown:hover .dropbtn {background-color: darkblue;}
+
+.green{
+  color: green;
+}
+
+.red{
+  color: red;
+}
+
+.yellow{
+  color: yellow;
+}

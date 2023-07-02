@@ -1,7 +1,8 @@
+from typing import Any, Dict
 from django.shortcuts import render
-from django.http import HttpResponseRedirect
+from django.http import Http404, HttpResponseRedirect
 # <HINT> Import any new Models here
-from .models import Course, Enrollment
+from .models import Course, Enrollment, Question, Choice, Submission
 from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404, render, redirect
 from django.urls import reverse
@@ -70,6 +71,7 @@ def check_if_enrolled(user, course):
     return is_enrolled
 
 
+
 # CourseListView
 class CourseListView(generic.ListView):
     template_name = 'onlinecourse/course_list_bootstrap.html'
@@ -87,6 +89,7 @@ class CourseListView(generic.ListView):
 class CourseDetailView(generic.DetailView):
     model = Course
     template_name = 'onlinecourse/course_detail_bootstrap.html'
+    context_object_name = 'course'
 
 
 def enroll(request, course_id):
@@ -110,27 +113,82 @@ def enroll(request, course_id):
          # Collect the selected choices from exam form
          # Add each selected choice object to the submission object
          # Redirect to show_exam_result with the submission id
-#def submit(request, course_id):
+
+from django.shortcuts import render, redirect
+from .models import Enrollment, Submission
+
+def submit(request, course_id):
+    # Получение текущего пользователя и объекта курса
+    user = request.user
+    course = Course.objects.get(id=course_id)
+    
+    # Получение связанной записи регистрации
+    enrollment = Enrollment.objects.get(user=user, course=course)
+    
+    if request.method == 'POST':
+        # Создание нового объекта отправки, связанного с регистрацией
+        submission = Submission.objects.create(enrollment=enrollment)
+        
+        # Получение выбранных вариантов из объекта HTTP-запроса
+        selected_choices = extract_answers(request)
+        
+        # Добавление каждого выбранного варианта в объект отправки
+        for choice_id in selected_choices:
+            choice = Choice.objects.get(id=choice_id)
+            submission.choices.add(choice)
+        
+        # Перенаправление на представление show_exam_result с идентификатором отправки
+        return redirect(reverse('onlinecourse:show_exam_result', kwargs={'course_id': course_id, 'submission_id': submission.id}))
+    
+    raise Http404('Страница не найдена')
 
 
-# <HINT> A example method to collect the selected choices from the exam form from the request object
-#def extract_answers(request):
-#    submitted_anwsers = []
-#    for key in request.POST:
-#        if key.startswith('choice'):
-#            value = request.POST[key]
-#            choice_id = int(value)
-#            submitted_anwsers.append(choice_id)
-#    return submitted_anwsers
+def extract_answers(request):
+   submitted_anwsers = []
+   for key in request.POST:
+       if key.startswith('choice'):
+           value = request.POST[key]
+           choice_id = int(value)
+           submitted_anwsers.append(choice_id)
+   return submitted_anwsers
 
 
-# <HINT> Create an exam result view to check if learner passed exam and show their question results and result for each question,
-# you may implement it based on the following logic:
-        # Get course and submission based on their ids
-        # Get the selected choice ids from the submission record
-        # For each selected choice, check if it is a correct answer or not
-        # Calculate the total score
-#def show_exam_result(request, course_id, submission_id):
+from django.shortcuts import render
+from .models import Course, Submission
+
+def show_exam_result(request, course_id, submission_id):
+    # Получение объекта курса и объекта отправки на основе их идентификаторов
+    course = Course.objects.get(id=course_id)
+    submission = Submission.objects.get(id=submission_id)
+    
+    # Получение выбранных идентификаторов выбора из записи отправки
+    selected_ids = submission.choices.values_list('id', flat=True)
+    print(selected_ids)
+    
+    # Подсчет общего балла, сложив оценки за все вопросы курса
+    grade = 0
+    total_score = 0
+    for question in course.question.all():
+        total_score += question.score
+        truth = len(question.choice.filter(true=True))
+        for choice in question.choice.all():
+            if choice.id in selected_ids and choice.true:
+                grade += question.score/truth
+            if choice.id in selected_ids and not choice.true:
+                grade -= question.score/truth
+    
+    # Добавление курса, выбранных идентификаторов и оценки в контекст для отображения HTML-страницы
+    context = {
+        'course': course,
+        'selected_ids': selected_ids,
+        'grade': grade,
+        'total_score': float(total_score),
+        'pass': total_score * 0.8
+    }
+    
+    return render(request, 'onlinecourse/exam_result_bootstrap.html', context)
+
+
 
 
 
