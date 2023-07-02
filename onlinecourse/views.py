@@ -136,6 +136,8 @@ def submit(request, course_id):
         for choice_id in selected_choices:
             choice = Choice.objects.get(id=choice_id)
             submission.choices.add(choice)
+
+        selected_choices.save()
         
         # Перенаправление на представление show_exam_result с идентификатором отправки
         return redirect(reverse('onlinecourse:show_exam_result', kwargs={'course_id': course_id, 'submission_id': submission.id}))
